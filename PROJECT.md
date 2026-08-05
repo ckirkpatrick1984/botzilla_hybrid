@@ -84,48 +84,81 @@ EZ wiring) — so this isn't a blind copy.
       currently-flashed firmware copied in unmodified as the initial commit.
 - [x] `README.md` / `PROJECT.md` written, documenting lineage and both
       read-only source references.
-- [ ] Build-verify the untouched baseline (`pio run -e STM32H723VG_btt`).
-- [ ] Systematic comparison pass vs. `taz6-skr3ez-marlin`'s
-      `TAZ6_SKR3EZ_BLTouch` env — documented per item below, each as
-      adopt / skip / needs-verification:
-  - [ ] TMC stepper RMS current (1000 mA stock default vs. LulzBot's
-        measured 975 mA) — verify Z-axis wiring first given the Z2/E1
-        driver-slot note.
-  - [ ] TMC UART addresses / microstepping / driver config.
-  - [ ] Endstop bump distance / homing feedrates / thermal protection
-        windows.
-  - [ ] `Z_SAFE_HOMING` XY point — needs Botzilla-specific recomputation for
-        its actual 290×290 bed (not copyable from TAZ6's 280×280-derived
-        value).
-  - [ ] Fan pin/logic conventions cross-check (`E0_AUTO_FAN_PIN FAN1_PIN`
-        already set on Botzilla).
-- [ ] Confirm Botzilla-specific items that neither source fully covers:
-  - [ ] Stealthburner extruder E-steps (`725` already present — treat as
-        field-calibrated since the printer already prints; verify, don't
-        casually change).
-  - [ ] SSR bed heater stays on standard `PIDTEMPBED` PWM (matches the
-        confirmed solid-state, zero-cross SSR — no change expected).
-- [ ] Apply each adopted optimization as its own commit, rebuilding after
-      each.
-- [ ] Final build verification + staged hardware bring-up/flash checklist
-      written into this file.
-- [ ] Flash-test on real hardware (user-performed).
+- [x] Build-verified the untouched baseline: `pio run -e STM32H723VG_btt`
+      succeeds (Flash 19.9% / RAM 3.5%).
+- [x] Systematic comparison pass vs. `taz6-skr3ez-marlin`'s
+      `TAZ6_SKR3EZ_BLTouch` env — see the comparison table below.
+- [x] Confirmed Botzilla-specific items that neither source fully covers
+      (extruder E-steps, SSR bed heater — see below).
+- [x] Applied the one clearly-safe adopted optimization (TMC `RSENSE`) as
+      its own commit; rebuilt, size unchanged (208812 bytes flash).
+- [x] Final build verification done; bring-up/flash checklist below.
+- [ ] Flash-test on real hardware (user-performed — see checklist).
+
+## Comparison findings (Botzilla vs. `taz6-skr3ez-marlin`)
+
+| Setting | Botzilla (before) | `taz6-skr3ez-marlin` | Recommendation | Status |
+|---|---|---|---|---|
+| `X/Y/Z/E0_RSENSE` (`Configuration_adv.h`) | `0.11` (Marlin stock default) | `LULZBOT_RSENSE` = `0.12`, LulzBot's measured value for BTT EZ2209 modules | **Adopt** — same board/driver-module hardware, low risk, only affects current-register accuracy, not behavior | ✅ Applied (commit `0da1fb6`) |
+| `X/Y/Z_CURRENT` (`Configuration_adv.h`) | `1000` mA (stock default) | `975` mA, LulzBot's measured TAZ6 value | Needs verification — Botzilla's Z axis may not match stock TAZ6 (an existing `//NF` note says Z2 routes through the board's E1 driver slot on this wiring), so don't copy blindly. Flagged as an open question below. | ⏳ Not applied |
+| `HOMING_BUMP_DIVISOR` (`Configuration_adv.h`) | `{2, 2, 4}` | `{1, 2, 4}` | Minor (X-axis re-bump speed only) — low priority, skip unless homing repeatability becomes an issue | Skipped |
+| `HOMING_FEEDRATE_MM_M` (`Configuration.h`) | `{75*60, 75*60, 10*60}` (75 mm/s X/Y) | `{50*60, 50*60, ...}` (50 mm/s X/Y, stock TAZ6 value) | Botzilla already runs homing faster than LulzBot's validated stock value, and it currently works — **not** a candidate to copy backward. Noted for awareness only, in case homing reliability is ever investigated. | Skipped (informational only) |
+| `THERMAL_PROTECTION_BED_PERIOD` / `_HYSTERESIS` (`Configuration_adv.h`) | `20`s / `2°C` | `20`s / `2°C` | Identical — no action | No action |
+| `Z_SAFE_HOMING_X/Y_POINT` (`Configuration.h`) | `X_CENTER` / `Y_CENTER` (auto-derives from actual bed size) | Hardcoded TAZ6-280×280-derived values | Botzilla's approach is already better — auto-adapts to its real 290×290 bed. **No action needed.** | No action |
+| BLTouch pins (`Z_MIN_PROBE_PIN`/`SERVO0_PIN`) | Board defaults, no override | Board defaults, no override | Both rely on the SKR 3 EZ's own dedicated pins — confirmed identical `pins_BTT_SKR_V3_0_common.h` between sources (trivial comment-only drift). No action. | No action |
+| `E0_AUTO_FAN_PIN` (`Configuration_adv.h`) | `FAN1_PIN` (explicit) | Board default | Consistent, not contradicted — no action | No action |
+| `SENSORLESS_HOMING` | Disabled | Disabled | Both independently keep physical endstops — consistent, no action | No action |
+
+## Botzilla-specific gaps confirmed
+
+- **Stealthburner extruder E-steps** (`DEFAULT_AXIS_STEPS_PER_UNIT`, 4th
+  value `725`): already present in the baseline. Since Botzilla prints
+  successfully today, this is treated as field-calibrated — not touched.
+- **SSR bed heater**: `PIDTEMPBED` is already enabled (standard PWM PID),
+  which matches the user-confirmed solid-state, zero-cross SSR. No firmware
+  change needed — `SLOW_PWM_HEATERS` (for mechanical/non-zero-cross relays)
+  does not apply here.
 
 ## Open questions log
 
-- TMC current for Z axis specifically: needs physical confirmation of how
-  Botzilla's Z motors are wired (given the Z2→E1-driver-slot note) before
-  adopting LulzBot's 975 mA TAZ6 value wholesale.
+- TMC current for the Z axis specifically: needs physical confirmation of
+  how Botzilla's Z motors are wired (given the Z2→E1-driver-slot note)
+  before adopting LulzBot's 975 mA TAZ6 value. **Not applied** pending that
+  confirmation — X/Y current was left alone too, for consistency, since
+  changing X/Y current without also resolving Z leaves the axes on
+  inconsistent tuning philosophies.
 - Whether any further Stealthburner-specific tuning (part-cooling duct fan
   behavior, ADXL345 input shaping if present) is wanted — not currently
   configured in either source; flag if raised later.
 
+## Hardware bring-up / flash checklist
+
+Only relevant once/if this repo's build is intentionally reflashed onto the
+physical printer (it currently only differs from the running firmware by
+the `RSENSE` correction above — low risk, but still a firmware change):
+
+- [ ] Re-review this repo's diff against `Botzilla Marlin 2.1.2.4`
+      (`diff -r`) immediately before flashing, to confirm only the intended,
+      documented changes are present.
+- [ ] Keep the currently-flashed baseline's `.bin` available as a rollback
+      (already preserved, untouched, in `Botzilla Marlin 2.1.2.4/Marlin-2.1.2.4/.pio/build/STM32H723VG_btt/firmware.bin`).
+- [ ] Flash `botzilla-marlin`'s build; confirm boot, LCD comes up, and
+      `M115`/machine name reports as expected.
+- [ ] Verify each subsystem individually before printing: stepper
+      directions, endstop triggers, thermistor readings (hotend + bed),
+      heater outputs, BLTouch deploy/stow and a probe test
+      (`M48` repeatability test).
+- [ ] Re-run a bed mesh (`G29`) and confirm leveling looks sane before the
+      first print.
+- [ ] First test print, compare against a known-good print from the
+      current baseline.
+
 ## Repo status
 
-- `botzilla-marlin` — new repo, initial baseline commit only so far. Not yet
-  build-verified in this repo (baseline was last known-good as of
-  2024-12-12 in the source it was copied from). No optimizations from
-  `taz6-skr3ez-marlin` applied yet.
+- `botzilla-marlin` — new repo. Baseline commit + docs + one adopted
+  optimization (`RSENSE` correction), all build-verified
+  (`STM32H723VG_btt`: Flash 208812 bytes / RAM 20032 bytes, unchanged
+  across the `RSENSE` commit). Not yet flashed on real hardware.
 - `Botzilla Marlin 2.1.2.4` (renamed from `Nicked Lulzbot Marlin 2.0.9.0.13`)
   — untouched, read-only baseline reference. This is what's actually
   flashed and running on the printer today.
