@@ -12,7 +12,7 @@ ever modifying either source.
 
 ## Goals
 
-- A new, independent repo (`botzilla-marlin`) seeded from Botzilla's actual
+- A new, independent repo (`botzilla_hybrid`) seeded from Botzilla's actual
   currently-flashed firmware, so there's a clean, version-controlled record
   of the working baseline.
 - A systematic, documented comparison against `taz6-skr3ez-marlin`'s
@@ -91,7 +91,7 @@ current).
 
 - [x] Renamed `Nicked Lulzbot Marlin 2.0.9.0.13` → `Botzilla Marlin 2.1.2.4`
       (stale name, wrong version, no longer LulzBot's fork).
-- [x] New repo `botzilla-marlin` created, git initialized, Botzilla's actual
+- [x] New repo `botzilla_hybrid` created, git initialized, Botzilla's actual
       currently-flashed firmware copied in unmodified as the initial commit.
 - [x] `README.md` / `PROJECT.md` written, documenting lineage and both
       read-only source references.
@@ -162,7 +162,7 @@ firmware changes):
       probes and aligns Z/Z2 correctly before trusting any print.
 - [ ] Keep the currently-flashed baseline's `.bin` available as a rollback
       (already preserved, untouched, in `Botzilla Marlin 2.1.2.4/Marlin-2.1.2.4/.pio/build/STM32H723VG_btt/firmware.bin`).
-- [ ] Flash `botzilla-marlin`'s build; confirm boot, LCD comes up, and
+- [ ] Flash `botzilla_hybrid`'s build; confirm boot, LCD comes up, and
       `M115`/machine name reports as expected.
 - [ ] Verify each subsystem individually before printing: stepper
       directions, endstop triggers, thermistor readings (hotend + bed),
@@ -175,7 +175,7 @@ firmware changes):
 
 ## Repo status
 
-- `botzilla-marlin` — new repo. Baseline commit + docs + two adopted
+- `botzilla_hybrid` — new repo. Baseline commit + docs + two adopted
   optimizations (`RSENSE` correction, `X/Y/Z_CURRENT` correction), all
   build-verified (`STM32H723VG_btt`: Flash 208820 bytes / RAM 20032 bytes).
   Dual-Z auto-align (`Z_STEPPER_AUTO_ALIGN`/G34, Z2-via-E1-driver-slot)

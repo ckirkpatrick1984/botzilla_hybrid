@@ -1,4 +1,4 @@
-# botzilla-marlin
+# botzilla_hybrid
 
 Marlin firmware for **Botzilla** — a LulzBot TAZ 6 frame/motion system,
 converted onto a **BigTreeTech SKR 3 EZ** (STM32H723VGT6) mainboard, with a
