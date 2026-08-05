@@ -71,10 +71,21 @@ candidates rather than conflicting approaches.
 **Concrete example already found**: Botzilla's `Configuration_adv.h` leaves
 `X_CURRENT`/`Y_CURRENT`/`Z_CURRENT` at Marlin's stock default (`1000` mA),
 while `taz6-skr3ez-marlin` carries forward LulzBot's own measured TAZ6 value
-(`975` mA) from the original RAMBo config. Worth evaluating, with the caveat
-that Botzilla's Z-axis setup may not exactly match stock TAZ6 (an existing
-`//NF` note says Z2 routes through the board's E1 driver slot on this SKR 3
-EZ wiring) — so this isn't a blind copy.
+(`975` mA) from the original RAMBo config. User-confirmed Botzilla uses the
+same X/Y/Z motors as stock TAZ6, so this was adopted (see below).
+
+**Critical feature — independent dual-Z auto-leveling (do not lose this)**:
+Botzilla's Z2 motor is deliberately wired through the SKR 3 EZ board's E1
+driver slot (`Z2_DRIVER_TYPE TMC2209`, per the existing `//NF` note) so that
+Z and Z2 can be driven **independently**, not as a mirrored pair. This is
+what makes `Z_STEPPER_AUTO_ALIGN` (`Configuration_adv.h`) work — it adds the
+`G34` command, which uses the BLTouch probe to auto-correct gantry tilt by
+moving the two Z motors different amounts. This is a load-bearing feature
+for Botzilla and must be preserved in any future config changes; it was
+verified byte-identical to the untouched baseline after the TMC current
+change below (current and independent step control are orthogonal — G34
+works by commanding different step counts per driver, not different
+current).
 
 ## Task breakdown / milestones
 
@@ -90,8 +101,12 @@ EZ wiring) — so this isn't a blind copy.
       `TAZ6_SKR3EZ_BLTouch` env — see the comparison table below.
 - [x] Confirmed Botzilla-specific items that neither source fully covers
       (extruder E-steps, SSR bed heater — see below).
-- [x] Applied the one clearly-safe adopted optimization (TMC `RSENSE`) as
-      its own commit; rebuilt, size unchanged (208812 bytes flash).
+- [x] Applied TMC `RSENSE` correction (0.11→0.12) as its own commit;
+      rebuilt, size unchanged (208812 bytes flash).
+- [x] Applied TMC `X/Y/Z_CURRENT` (1000mA→975mA) as its own commit, after
+      user confirmed Botzilla's X/Y/Z motors match stock TAZ6, and after
+      verifying this doesn't affect the independent dual-Z auto-align
+      feature (see Background). Rebuilt (208820 bytes flash).
 - [x] Final build verification done; bring-up/flash checklist below.
 - [ ] Flash-test on real hardware (user-performed — see checklist).
 
@@ -100,7 +115,7 @@ EZ wiring) — so this isn't a blind copy.
 | Setting | Botzilla (before) | `taz6-skr3ez-marlin` | Recommendation | Status |
 |---|---|---|---|---|
 | `X/Y/Z/E0_RSENSE` (`Configuration_adv.h`) | `0.11` (Marlin stock default) | `LULZBOT_RSENSE` = `0.12`, LulzBot's measured value for BTT EZ2209 modules | **Adopt** — same board/driver-module hardware, low risk, only affects current-register accuracy, not behavior | ✅ Applied (commit `0da1fb6`) |
-| `X/Y/Z_CURRENT` (`Configuration_adv.h`) | `1000` mA (stock default) | `975` mA, LulzBot's measured TAZ6 value | Needs verification — Botzilla's Z axis may not match stock TAZ6 (an existing `//NF` note says Z2 routes through the board's E1 driver slot on this wiring), so don't copy blindly. Flagged as an open question below. | ⏳ Not applied |
+| `X/Y/Z_CURRENT` (`Configuration_adv.h`) | `1000` mA (stock default) | `975` mA, LulzBot's measured TAZ6 value | **Adopt** — user confirmed Botzilla's X/Y/Z motors match stock TAZ6. Verified independent of the Z2/E1-driver-slot dual-Z auto-align setup (current and per-motor step control are orthogonal). | ✅ Applied (commit `0db885f`) |
 | `HOMING_BUMP_DIVISOR` (`Configuration_adv.h`) | `{2, 2, 4}` | `{1, 2, 4}` | Minor (X-axis re-bump speed only) — low priority, skip unless homing repeatability becomes an issue | Skipped |
 | `HOMING_FEEDRATE_MM_M` (`Configuration.h`) | `{75*60, 75*60, 10*60}` (75 mm/s X/Y) | `{50*60, 50*60, ...}` (50 mm/s X/Y, stock TAZ6 value) | Botzilla already runs homing faster than LulzBot's validated stock value, and it currently works — **not** a candidate to copy backward. Noted for awareness only, in case homing reliability is ever investigated. | Skipped (informational only) |
 | `THERMAL_PROTECTION_BED_PERIOD` / `_HYSTERESIS` (`Configuration_adv.h`) | `20`s / `2°C` | `20`s / `2°C` | Identical — no action | No action |
@@ -121,25 +136,30 @@ EZ wiring) — so this isn't a blind copy.
 
 ## Open questions log
 
-- TMC current for the Z axis specifically: needs physical confirmation of
-  how Botzilla's Z motors are wired (given the Z2→E1-driver-slot note)
-  before adopting LulzBot's 975 mA TAZ6 value. **Not applied** pending that
-  confirmation — X/Y current was left alone too, for consistency, since
-  changing X/Y current without also resolving Z leaves the axes on
-  inconsistent tuning philosophies.
+- ~~TMC current for the Z axis: needs physical confirmation Botzilla's Z
+  motors match stock TAZ6~~ — resolved: user confirmed same motors, 975mA
+  adopted for X/Y/Z (commit `0db885f`).
 - Whether any further Stealthburner-specific tuning (part-cooling duct fan
   behavior, ADXL345 input shaping if present) is wanted — not currently
   configured in either source; flag if raised later.
+- `Z_STEPPER_ALIGN_XY` / `Z_STEPPER_ALIGN_STEPPER_XY` (`Configuration_adv.h`,
+  both commented out) — Botzilla currently relies on Marlin's computed
+  defaults for the G34 probe/stepper positions rather than explicit tuned
+  values. Not touched; flag if G34 alignment accuracy ever needs tuning.
 
 ## Hardware bring-up / flash checklist
 
 Only relevant once/if this repo's build is intentionally reflashed onto the
-physical printer (it currently only differs from the running firmware by
-the `RSENSE` correction above — low risk, but still a firmware change):
+physical printer (it currently differs from the running firmware by the
+`RSENSE` and `X/Y/Z_CURRENT` corrections above — both low risk, but still
+firmware changes):
 
 - [ ] Re-review this repo's diff against `Botzilla Marlin 2.1.2.4`
       (`diff -r`) immediately before flashing, to confirm only the intended,
       documented changes are present.
+- [ ] After flashing, specifically re-test `G34` (dual-Z auto-align) —
+      this is the highest-value feature to protect. Confirm it still
+      probes and aligns Z/Z2 correctly before trusting any print.
 - [ ] Keep the currently-flashed baseline's `.bin` available as a rollback
       (already preserved, untouched, in `Botzilla Marlin 2.1.2.4/Marlin-2.1.2.4/.pio/build/STM32H723VG_btt/firmware.bin`).
 - [ ] Flash `botzilla-marlin`'s build; confirm boot, LCD comes up, and
@@ -155,10 +175,11 @@ the `RSENSE` correction above — low risk, but still a firmware change):
 
 ## Repo status
 
-- `botzilla-marlin` — new repo. Baseline commit + docs + one adopted
-  optimization (`RSENSE` correction), all build-verified
-  (`STM32H723VG_btt`: Flash 208812 bytes / RAM 20032 bytes, unchanged
-  across the `RSENSE` commit). Not yet flashed on real hardware.
+- `botzilla-marlin` — new repo. Baseline commit + docs + two adopted
+  optimizations (`RSENSE` correction, `X/Y/Z_CURRENT` correction), all
+  build-verified (`STM32H723VG_btt`: Flash 208820 bytes / RAM 20032 bytes).
+  Dual-Z auto-align (`Z_STEPPER_AUTO_ALIGN`/G34, Z2-via-E1-driver-slot)
+  confirmed intact and unaffected. Not yet flashed on real hardware.
 - `Botzilla Marlin 2.1.2.4` (renamed from `Nicked Lulzbot Marlin 2.0.9.0.13`)
   — untouched, read-only baseline reference. This is what's actually
   flashed and running on the printer today.
