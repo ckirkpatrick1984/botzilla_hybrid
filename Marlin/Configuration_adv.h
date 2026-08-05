@@ -2731,7 +2731,7 @@
   #define INTERPOLATE      true
 
   #if AXIS_IS_TMC_CONFIG(X)
-    #define X_CURRENT       1000        // (mA) RMS current. Multiply by 1.414 for peak current.
+    #define X_CURRENT       975         // (mA) RMS current. Multiply by 1.414 for peak current. //NF-optim - matches LulzBot's measured value for stock TAZ6 X/Y/Z motors (taz6-skr3ez-marlin), vs Marlin's stock 1000mA default; confirmed Botzilla uses the same motors
     #define X_CURRENT_HOME  X_CURRENT  // (mA) RMS current for sensorless homing
     #define X_MICROSTEPS     16        // 0..256
     #define X_RSENSE          0.12     // Multiplied x1000 for TMC26X //NF-optim - matches LulzBot's measured Rsense for the same BTT EZ2209 driver modules (taz6-skr3ez-marlin), vs Marlin's stock 0.11 default
@@ -2751,7 +2751,7 @@
   #endif
 
   #if AXIS_IS_TMC_CONFIG(Y)
-    #define Y_CURRENT       1000
+    #define Y_CURRENT       975 //NF-optim - see X_CURRENT note
     #define Y_CURRENT_HOME  Y_CURRENT
     #define Y_MICROSTEPS     16
     #define Y_RSENSE          0.12 //NF-optim - see X_RSENSE note
@@ -2771,7 +2771,7 @@
   #endif
 
   #if AXIS_IS_TMC_CONFIG(Z)
-    #define Z_CURRENT       1000
+    #define Z_CURRENT       975 //NF-optim - see X_CURRENT note; applies to Z2 too (Z2_CURRENT aliases Z_CURRENT), regardless of which physical driver slot Z2 is wired through
     #define Z_CURRENT_HOME  Z_CURRENT
     #define Z_MICROSTEPS     16
     #define Z_RSENSE          0.12 //NF-optim - see X_RSENSE note
